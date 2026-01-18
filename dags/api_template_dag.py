@@ -48,7 +48,8 @@ log = logging.getLogger(__name__)
 # -- DAG Configuration
 STAGING_AREA = Path("staging/api")
 PROCESSED_LOG_FILE = STAGING_AREA / "processed_dates.txt"
-SNOWFLAKE_TABLE = "YOUR_WEATHER_TABLE_NAME_HERE"  # TODO: Replace with your target table name
+SNOWFLAKE_TABLE = "weather_data"  # Replaced with the table name
+
 
 # A dictionary of cities and their coordinates for the API call
 CITIES = {
@@ -116,10 +117,10 @@ def api_template_pipeline():
                     end_date=date_str,
                 )
                 
-                # TODO: Add more daily variables here!
+                #  Add more daily variables here!
                 # Refer to the `openmeteopy.daily.DailyHistorical` class for available options.
                 # Example: .weather_code().sunrise().sunset()
-                daily = DailyHistorical().temperature_2m_max().temperature_2m_min().precipitation_sum().windspeed_10m_max()
+                daily = DailyHistorical().temperature_2m_max().temperature_2m_min().precipitation_sum().windspeed_10m_max().sunrise().sunset()
 
                 mgr = OpenMeteo(options, daily=daily.all())
                 response = mgr.get_dict()
@@ -158,10 +159,12 @@ def api_template_pipeline():
         log.info(f"Transforming data from {filepath}...")
         df = pd.read_csv(filepath)
 
-        # TODO: Add your data transformation logic here.
+        # Add your data transformation logic here.
         # For example, you could add a unique ID, convert units, or derive new columns.
         # df['temp_range_c'] = df['max_temp'] - df['min_temp']
         # df['load_ts'] = datetime.utcnow()
+        df['temp_range_c']= df['max_temp'] - df['min_temp']
+        df['load_ts'] = datetime.utcnow()   
         
         log.info(f"Transformation complete. DataFrame has {len(df)} rows.")
         return df, date_str
@@ -178,15 +181,16 @@ def api_template_pipeline():
             return date_str
 
         log.info(f"Loading {len(df)} rows into Snowflake table: {SNOWFLAKE_TABLE}")
-        # conn = get_snowflake_connection() # TODO: Uncomment when ready
+        conn = get_snowflake_connection() 
         try:
             # TODO: Use conn.cursor() to execute a MERGE statement or `write_pandas`.
             # A MERGE statement is recommended for idempotency.
-            # Example:
-            # from snowflake.connector.pandas_tools import write_pandas
-            # success, _, _, _ = write_pandas(conn, df, SNOWFLAKE_TABLE, auto_create_table=True, overwrite=True)
-            # if not success:
-            #     raise Exception("Failed to write to Snowflake.")
+            
+            # Using write_pandas for simplicity; replace with MERGE if needed for updates
+            from snowflake.connector.pandas_tools import write_pandas
+            success, _, _, _ = write_pandas(conn, df, SNOWFLAKE_TABLE, auto_create_table=True, overwrite=True)
+            if not success:
+                 raise Exception("Failed to write to Snowflake.")
             
             # --- Log Processed Date on Success ---
             with open(PROCESSED_LOG_FILE, "a") as f:
@@ -197,7 +201,7 @@ def api_template_pipeline():
             log.error(f"Snowflake load failed: {e}")
             raise
         finally:
-            # if conn: conn.close() # TODO: Uncomment when ready
+            if conn: conn.close() 
             log.info("Snowflake connection placeholder closed.")
             
         return date_str

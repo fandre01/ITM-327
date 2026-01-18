@@ -9,11 +9,11 @@ import requests
 import pandas as pd # Import pandas for DataFrame operations
 from snowflake.connector.pandas_tools import write_pandas
 
-from airflow.decorators import dag, task
+from airflow.sdk import dag, task
 
 # Import utility functions from utils.py (need to ensure it's on the path if not already)
 # This project's setup seems to handle dags/utils.py imports automatically for DAGs.
-from dags.utils import get_snowflake_connection
+from utils import get_snowflake_connection
 
 # -------------------------------------------------------------------
 # Configuration
