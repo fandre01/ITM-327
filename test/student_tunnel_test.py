@@ -5,7 +5,7 @@ from sshtunnel import SSHTunnelForwarder
 import time
 from pathlib import Path
 
-load_dotenv('student.env')  # Update path if needed
+load_dotenv('../.env')  # Update path if needed
 
 # SSH credentials
 SSH_HOST = os.getenv("SSH_HOST")
@@ -16,6 +16,8 @@ SSH_PASSWORD = os.getenv("SSH_PASSWORD")
 # MongoDB credentials
 MONGO_HOST = os.getenv("MONGO_HOST")
 MONGO_PORT = int(os.getenv("MONGO_PORT"))
+
+
 
 tunnel = SSHTunnelForwarder(
     (SSH_HOST, SSH_PORT),

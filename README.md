@@ -28,7 +28,7 @@ python airflow-core-fernet-key.py
 
 ## ✅ Getting Airflow Started
 
-1. In that VS Code Terminal Run:
+1. In the VS Code Terminal, change into the `ITM-327` folder (the one that contains `docker-compose.yaml`). Then run:
 
 ```bash
 docker compose up --build -d
@@ -42,6 +42,8 @@ Login with:
 
 
 ## shut down
+
+Make sure you are inside the `ITM-327` folder (the one that contains `docker-compose.yaml`). Then run:
 
 ```bash
 docker compose down
