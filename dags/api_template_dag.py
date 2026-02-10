@@ -48,7 +48,7 @@ log = logging.getLogger(__name__)
 # -- DAG Configuration
 STAGING_AREA = Path("staging/api")
 PROCESSED_LOG_FILE = STAGING_AREA / "processed_dates.txt"
-SNOWFLAKE_TABLE = "SNOWBEARAIR_DB.RAW.WEATHER_DAG_ANDRE_FAB"  # : Replace with your target table name
+SNOWFLAKE_TABLE = "WEATHER_DAG_ANDRE_FAB"  # : I updated this to my target table name
 
 # A dictionary of cities and their coordinates for the API call
 CITIES = {
@@ -92,6 +92,9 @@ def api_template_pipeline():
         date_str = data_interval_start.strftime('%Y-%m-%d')
         local_dir = STAGING_AREA / date_str
         
+        # I neeed to subract one day from the date_str to get the correct date for the API call
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d') - timedelta(days=1)
+        date_str = date_obj.strftime('%Y-%m-%d')    
         # --- Idempotency Check ---
         with open(PROCESSED_LOG_FILE, "r") as f:
             if date_str in f.read().splitlines():
@@ -130,8 +133,8 @@ def api_template_pipeline():
                     .snowfall_sum()
                     .apparent_temperature_max()
                     .apparent_temperature_min()
+                    .rain_sum()
                 
-                    
                 )
                 mgr = OpenMeteo(options, daily=daily.all())
                 response = mgr.get_dict()
@@ -179,6 +182,18 @@ def api_template_pipeline():
 
         df['temp_apparent_range_c'] = df['apparent_temp_max'] - df['apparent_temp_min']
         df['load_ts'] = datetime.utcnow()
+
+        # NOTE: Convert sunrise/sunset to minutes since midnight for numeric Snowflake columns
+        def to_minutes_since_midnight(value):
+            ts = pd.to_datetime(value, errors="coerce")
+            if pd.isna(ts):
+                return None
+            return ts.hour * 60 + ts.minute
+
+        if "sunrise" in df.columns:
+            df["sunrise"] = df["sunrise"].apply(to_minutes_since_midnight).astype("Int64")
+        if "sunset" in df.columns:
+            df["sunset"] = df["sunset"].apply(to_minutes_since_midnight).astype("Int64")
         
         log.info(f"Transformation complete. DataFrame has {len(df)} rows.")
         return df, date_str
@@ -199,7 +214,7 @@ def api_template_pipeline():
         try:
             
             from snowflake.connector.pandas_tools import write_pandas
-            success, _, _, _ = write_pandas(conn, df, SNOWFLAKE_TABLE, auto_create_table=True, overwrite=True)
+            success, _, _, _ = write_pandas(conn, df, SNOWFLAKE_TABLE, auto_create_table=True, overwrite=False)
             if not success:
                 raise Exception("Failed to write to Snowflake.")
             

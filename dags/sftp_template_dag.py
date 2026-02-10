@@ -34,7 +34,7 @@ log = logging.getLogger(__name__)
 # IMPORTANT: This path is relative to the Airflow project root.
 STAGING_AREA = Path("staging/sftp")
 PROCESSED_LOG_FILE = STAGING_AREA / "processed_dates.txt"
-SNOWFLAKE_TABLE = "YOUR_TABLE_NAME_HERE"  # TODO: Replace with your target table name
+SNOWFLAKE_TABLE = "SFTP_DAG_ANDRE_FAB"  # I updated this line to my table name
 
 
 
@@ -96,8 +96,8 @@ def sftp_template_pipeline():
                 remote_file = os.path.join(remote_path, filename)
                 local_file = local_dir / filename
                 log.info(f"Downloading {remote_file} to {local_file}")
-                # TODO: Uncomment the line below to perform the actual download
-                # sftp.get(str(remote_file), str(local_file))
+                # Upated this by Uncomment the line below to perform the actual download
+                sftp.get(str(remote_file), str(local_file))
                 downloaded_files.append(str(local_file))
 
             sftp.close()

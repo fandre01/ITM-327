@@ -151,15 +151,9 @@ def create_ssh_tunnel():
 # ---------------------------------------------------------
 
 # Updated the weather record builder to include additional fields(sunrise, sunset, snowfall, apparent temperatures)
-from datetime import datetime
-
 def build_weather_record(weather_dict, target_date, city):
     """Extract weather metrics safely from API response."""
     daily_data = weather_dict.get("daily", {})
-
-    apparent_max = daily_data.get("apparent_temperature_max", [None])[0]
-    apparent_min = daily_data.get("apparent_temperature_min", [None])[0]
-
     return {
         "date": target_date,
         "city": city,
@@ -168,18 +162,14 @@ def build_weather_record(weather_dict, target_date, city):
         "precip": daily_data.get("precipitation_sum", [None])[0],
         "max_wind": daily_data.get("windspeed_10m_max", [None])[0],
         "sunrise": daily_data.get("sunrise", [None])[0],
-        "sunset": daily_data.get("sunset", [None])[0],
+        "sunset": daily_data.get("sunset", [None])[0],      
         "snowfall": daily_data.get("snowfall_sum", [None])[0],
-        "apparent_temp_max": apparent_max,
-        "apparent_temp_min": apparent_min,
-        "temp_apparent_range_c": (
-            apparent_max - apparent_min
-            if apparent_max is not None and apparent_min is not None
-            else None
-        ),
-        "load_ts": datetime.utcnow()
+        "apparent_temp_max": daily_data.get("apparent_temperature_max", [None])[0],
+        "apparent_temp_min": daily_data.get("apparent_temperature_min", [None])[0],
+        #"dominant_wind_direction": daily_data.get("winddirection_10m_dominant", [None])[0],
+        "rain_sum": daily_data.get("rain_sum", [0])[0],
+             
     }
-
 
 # ---------------------------------------------------------
 # Snowflake MERGE SQL Builder
@@ -195,18 +185,29 @@ def build_merge_sql(rec, table):
             {rec["max_temp"] if rec["max_temp"] is not None else 'NULL'} AS MAX_TEMP,
             {rec["min_temp"] if rec["min_temp"] is not None else 'NULL'} AS MIN_TEMP,
             {rec["max_wind"] if rec["max_wind"] is not None else 'NULL'} AS MAX_WIND,
-            {rec["precip"] if rec["precip"] is not None else 'NULL'} AS PRECIP
+            {rec["precip"] if rec["precip"] is not None else 'NULL'} AS PRECIP,
+            {rec["sunrise"] if rec["sunrise"] is not None else 'NULL'} AS SUNRISE,
+            {rec["sunset"] if rec["sunset"] is not None else 'NULL'} AS SUNSET,
+            {rec["snowfall"] if rec["snowfall"] is not None else 'NULL'} AS SNOWFALL,
+            {rec["apparent_temp_max"] if rec["apparent_temp_max"] is not None else 'NULL'} AS APPARENT_TEMP_MAX,
+            {rec["apparent_temp_min"] if rec["apparent_temp_min"] is not None else 'NULL'} AS APPARENT_TEMP_MIN
         ) s
         ON t.DATE = s.DATE AND t.CITY = s.CITY
         WHEN MATCHED THEN UPDATE SET
             MAX_TEMP = s.MAX_TEMP,
             MIN_TEMP = s.MIN_TEMP,
             MAX_WIND = s.MAX_WIND,
-            PRECIP   = s.PRECIP
+            PRECIP   = s.PRECIP,
+            SUNRISE = s.SUNRISE,
+            SUNSET = s.SUNSET,
+            SNOWFALL = s.SNOWFALL,
+            APPARENT_TEMP_MAX = s.APPARENT_TEMP_MAX,
+            APPARENT_TEMP_MIN = s.APPARENT_TEMP_MIN,
+            RAIN_SUM = s.RAIN_SUM
         WHEN NOT MATCHED THEN INSERT
-            (DATE, CITY, MAX_TEMP, MIN_TEMP, MAX_WIND, PRECIP)
+            (DATE, CITY, MAX_TEMP, MIN_TEMP, MAX_WIND, PRECIP, SUNRISE, SUNSET, SNOWFALL, APPARENT_TEMP_MAX, APPARENT_TEMP_MIN, RAIN_SUM)
         VALUES
-            (s.DATE, s.CITY, s.MAX_TEMP, s.MIN_TEMP, s.MAX_WIND, s.PRECIP);
+            (s.DATE, s.CITY, s.MAX_TEMP, s.MIN_TEMP, s.MAX_WIND, s.PRECIP, s.SUNRISE, s.SUNSET, s.SNOWFALL, s.APPARENT_TEMP_MAX, s.APPARENT_TEMP_MIN, s.RAIN_SUM);
     """
 
 # ---------------------------------------------------------------

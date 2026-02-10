@@ -5,6 +5,7 @@ import logging
 from dotenv import load_dotenv
 import paramiko
 
+
 # Load env
 load_dotenv("../.env")
 
@@ -16,7 +17,6 @@ SFTP_DIR = os.getenv("SFTP_DIR")
 LOCAL_FILE = "example.csv"
 REMOTE_FILE = "AAPL_2025-01-01.csv"
 
-# Logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s: %(message)s"

@@ -24,7 +24,7 @@ ON_OFF_SNOWFLAKE_LOAD_ENABLED = True  # Set to True to enable Snowflake loading
 SNOWFLAKE_DATABASE = os.getenv("SNOWFLAKE_DATABASE", "SNOWBEARAIR_DB") # Default to SNOWBEARAIR_DB
 SNOWFLAKE_SCHEMA = os.getenv("SNOWFLAKE_SCHEMA", "RAW") # Default to RAW
 SNOWFLAKE_TABLE = "STARTER_DAG_ANDRE_F" # Table name for Bored API data
-
+';[]'
 @dag(
     dag_id="starter_dag",
     start_date=datetime(2026, 1, 1, tzinfo=timezone.utc), # Ensure timezone-aware
