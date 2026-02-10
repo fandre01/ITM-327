@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 
 import requests
@@ -49,9 +50,28 @@ def starter_dag_elt():
         """
         Fetches a random activity from the Bored API (community replacement).
         """
-        response = requests.get("https://bored-api.appbrewery.com/random", timeout=15)
-        response.raise_for_status()  # Raise an exception for bad status codes
-        return response.json()
+        url = "https://bored-api.appbrewery.com/random"
+        headers = {"User-Agent": "ITM-327-Airflow/1.0"}
+        max_attempts = 5
+        base_delay_seconds = 2
+
+        for attempt in range(1, max_attempts + 1):
+            response = requests.get(url, headers=headers, timeout=15)
+            if response.status_code == 429:
+                if attempt == max_attempts:
+                    response.raise_for_status()
+                delay = base_delay_seconds * (2 ** (attempt - 1))
+                logging.warning(
+                    "Bored API rate limited (429). Retrying in %s seconds (attempt %s/%s).",
+                    delay,
+                    attempt,
+                    max_attempts,
+                )
+                time.sleep(delay)
+                continue
+
+            response.raise_for_status()
+            return response.json()
 
     @task
     def load_raw_activity(activity_data: dict):

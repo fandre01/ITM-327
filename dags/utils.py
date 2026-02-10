@@ -150,9 +150,16 @@ def create_ssh_tunnel():
 # Weather Record Builder
 # ---------------------------------------------------------
 
+# Updated the weather record builder to include additional fields(sunrise, sunset, snowfall, apparent temperatures)
+from datetime import datetime
+
 def build_weather_record(weather_dict, target_date, city):
     """Extract weather metrics safely from API response."""
     daily_data = weather_dict.get("daily", {})
+
+    apparent_max = daily_data.get("apparent_temperature_max", [None])[0]
+    apparent_min = daily_data.get("apparent_temperature_min", [None])[0]
+
     return {
         "date": target_date,
         "city": city,
@@ -160,7 +167,19 @@ def build_weather_record(weather_dict, target_date, city):
         "min_temp": daily_data.get("temperature_2m_min", [None])[0],
         "precip": daily_data.get("precipitation_sum", [None])[0],
         "max_wind": daily_data.get("windspeed_10m_max", [None])[0],
+        "sunrise": daily_data.get("sunrise", [None])[0],
+        "sunset": daily_data.get("sunset", [None])[0],
+        "snowfall": daily_data.get("snowfall_sum", [None])[0],
+        "apparent_temp_max": apparent_max,
+        "apparent_temp_min": apparent_min,
+        "temp_apparent_range_c": (
+            apparent_max - apparent_min
+            if apparent_max is not None and apparent_min is not None
+            else None
+        ),
+        "load_ts": datetime.utcnow()
     }
+
 
 # ---------------------------------------------------------
 # Snowflake MERGE SQL Builder

@@ -25,7 +25,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
-from airflow.decorators import dag, task
+from airflow.sdk import dag, task
 
 # Import necessary utilities
 from utils import get_snowflake_connection, build_weather_record
@@ -48,8 +48,7 @@ log = logging.getLogger(__name__)
 # -- DAG Configuration
 STAGING_AREA = Path("staging/api")
 PROCESSED_LOG_FILE = STAGING_AREA / "processed_dates.txt"
-SNOWFLAKE_TABLE = "weather_data"  # Replaced with the table name
-
+SNOWFLAKE_TABLE = "SNOWBEARAIR_DB.RAW.WEATHER_DAG_ANDRE_FAB"  # : Replace with your target table name
 
 # A dictionary of cities and their coordinates for the API call
 CITIES = {
@@ -117,11 +116,23 @@ def api_template_pipeline():
                     end_date=date_str,
                 )
                 
-                #  Add more daily variables here!
+                #updated the daily variable to include sunrise, sunset, and snowfall, Maximum Apparent Temperature (2 m), Minimum Apparent Temperature (2 m)
                 # Refer to the `openmeteopy.daily.DailyHistorical` class for available options.
                 # Example: .weather_code().sunrise().sunset()
-                daily = DailyHistorical().temperature_2m_max().temperature_2m_min().precipitation_sum().windspeed_10m_max().sunrise().sunset()
-
+                daily = (
+                    DailyHistorical()
+                    .temperature_2m_max()
+                    .temperature_2m_min()
+                    .precipitation_sum()
+                    .windspeed_10m_max()
+                    .sunrise()
+                    .sunset()
+                    .snowfall_sum()
+                    .apparent_temperature_max()
+                    .apparent_temperature_min()
+                
+                    
+                )
                 mgr = OpenMeteo(options, daily=daily.all())
                 response = mgr.get_dict()
                 
@@ -159,12 +170,15 @@ def api_template_pipeline():
         log.info(f"Transforming data from {filepath}...")
         df = pd.read_csv(filepath)
 
-        # Add your data transformation logic here.
+        #: Add your data transformation logic here.
         # For example, you could add a unique ID, convert units, or derive new columns.
         # df['temp_range_c'] = df['max_temp'] - df['min_temp']
         # df['load_ts'] = datetime.utcnow()
-        df['temp_range_c']= df['max_temp'] - df['min_temp']
-        df['load_ts'] = datetime.utcnow()   
+        
+        # Compute daily apparent temperature range and add load timestamp
+
+        df['temp_apparent_range_c'] = df['apparent_temp_max'] - df['apparent_temp_min']
+        df['load_ts'] = datetime.utcnow()
         
         log.info(f"Transformation complete. DataFrame has {len(df)} rows.")
         return df, date_str
@@ -183,14 +197,13 @@ def api_template_pipeline():
         log.info(f"Loading {len(df)} rows into Snowflake table: {SNOWFLAKE_TABLE}")
         conn = get_snowflake_connection() 
         try:
-            # TODO: Use conn.cursor() to execute a MERGE statement or `write_pandas`.
-            # A MERGE statement is recommended for idempotency.
             
-            # Using write_pandas for simplicity; replace with MERGE if needed for updates
             from snowflake.connector.pandas_tools import write_pandas
             success, _, _, _ = write_pandas(conn, df, SNOWFLAKE_TABLE, auto_create_table=True, overwrite=True)
             if not success:
-                 raise Exception("Failed to write to Snowflake.")
+                raise Exception("Failed to write to Snowflake.")
+            
+
             
             # --- Log Processed Date on Success ---
             with open(PROCESSED_LOG_FILE, "a") as f:
@@ -224,10 +237,10 @@ def api_template_pipeline():
 
 
     # --- Task Chaining ---
-    extract_output, run_date = extract_from_api()
-    transform_output, run_date_transform = transform_data([extract_output, run_date])
-    loaded_date = load_to_snowflake([transform_output, run_date_transform])
+    extract_result = extract_from_api()
+    transform_result = transform_data(extract_result)
+    loaded_date = load_to_snowflake(transform_result)
     cleanup_staging_area(loaded_date)
 
 # Instantiate the DAG
-api_template_dag = api_template_pipeline()
+api_template_pipeline()
