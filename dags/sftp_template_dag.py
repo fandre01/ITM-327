@@ -68,6 +68,7 @@ def sftp_template_pipeline():
         """
         Connects to SFTP, checks if the date has been processed, and downloads files.
         """
+        
         date_str = data_interval_start.strftime('%Y-%m-%d')
         local_dir = STAGING_AREA / date_str
 
@@ -80,7 +81,7 @@ def sftp_template_pipeline():
 
         # --- Proceed with Extraction ---
         local_dir.mkdir(exist_ok=True)
-        remote_path = f"/course/ITM327/sftp_files/{date_str}"
+        remote_path = f"/course/ITM327/news/{date_str}"
         downloaded_files = []
 
         log.info(f"Connecting to SFTP to download files from: {remote_path}")
@@ -126,13 +127,14 @@ def sftp_template_pipeline():
             log.info(f"Reading {file_path}...")
             # TODO: Read each file into a DataFrame and append to `all_dfs`
             # Example:
-            # try:
-            #     df = pd.read_csv(file_path)
-            #     all_dfs.append(df)
-            # except pd.errors.EmptyDataError:
-            #     log.warning(f"File is empty: {file_path}")
-            pass
-
+            try:
+                df = pd.read_csv(file_path)
+                all_dfs.append(df)
+            except pd.errors.EmptyDataError:
+                log.warning(f"File is empty: {file_path}")
+            except Exception as e:
+                log.warning(f"Failed to read {file_path}: {e}")
+        
         if not all_dfs:
             log.warning("No data found in any of the files. Skipping.")
             return None, date_str
@@ -141,6 +143,15 @@ def sftp_template_pipeline():
         
         # TODO: Add your transformation logic here.
         # For example, rename columns, filter data, create new features.
+        combined_df['processed_date'] = pd.to_datetime(date_str)
+        combined_df = combined_df.dropna(how="all")
+         
+        required_cols = {"open", "close"}
+        missing_cols = required_cols - set(combined_df.columns)
+        if missing_cols:
+            log.warning(f"Missing expected columns: {missing_cols}. Skipping dropna on open/close.")
+        else:
+            combined_df = combined_df.dropna(subset=list(required_cols), how="any")
         log.info("Applying transformations...")
         
         log.info(f"Transformation complete. Resulting DataFrame has {len(combined_df)} rows.")
@@ -152,34 +163,59 @@ def sftp_template_pipeline():
         Loads the transformed DataFrame to Snowflake and logs the processed date.
         """
         df, date_str = transform_result
+
         if df is None or df.empty:
             log.info("DataFrame is empty. Skipping Snowflake load.")
-            return date_str # Return date_str so cleanup still runs for empty folders
+            return date_str
 
         log.info(f"Loading {len(df)} rows into Snowflake table: {SNOWFLAKE_TABLE}")
-        
-        # TODO: Implement the Snowflake loading logic.
-        # conn = get_snowflake_connection()
-        try:
-            # from snowflake.connector.pandas_tools import write_pandas
-            # success, n_chunks, n_rows, _ = write_pandas(conn, df, SNOWFLAKE_TABLE)
-            # if not success:
-            #     raise Exception("Snowflake write_pandas failed.")
-            # log.info(f"Successfully loaded {n_rows} rows to {SNOWFLAKE_TABLE}.")
 
-            # --- Log Processed Date on Success ---
+        conn = get_snowflake_connection()
+
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT COLUMN_NAME
+                    FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_NAME = %s
+                """, (SNOWFLAKE_TABLE.upper(),))
+
+                table_cols = {row[0].upper() for row in cur.fetchall()}
+
+            df.columns = [col.upper() for col in df.columns]
+
+            extra = [c for c in df.columns if c not in table_cols]
+            if extra:
+                log.warning(f"Dropping columns not in table: {extra}")
+                df = df.drop(columns=extra)
+
+            missing = [c for c in table_cols if c not in df.columns]
+            if missing:
+                raise ValueError(f"Missing required columns: {missing}")
+
+            from snowflake.connector.pandas_tools import write_pandas
+            success, n_chunks, n_rows, _ = write_pandas(conn, df, SNOWFLAKE_TABLE)
+
+            if not success:
+                raise Exception("Snowflake write_pandas failed.")
+
+            log.info(f"Successfully loaded {n_rows} rows to {SNOWFLAKE_TABLE}.")
+
             with open(PROCESSED_LOG_FILE, "a") as f:
                 f.write(f"{date_str}\n")
+
             log.info(f"Logged {date_str} to {PROCESSED_LOG_FILE}")
 
         except Exception as e:
             log.error(f"Snowflake load failed: {e}")
             raise
         finally:
-            # if conn: conn.close()
-            log.info("Snowflake connection placeholder closed.")
-            
+            if conn:
+                conn.close()
+                log.info("Snowflake connection closed.")
+
         return date_str
+
 
     @task
     def cleanup_staging_files(processed_date: str):

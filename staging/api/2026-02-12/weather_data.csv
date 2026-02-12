@@ -1,0 +1,4 @@
+date,city,max_temp,min_temp,precip,max_wind,sunrise,sunset,snowfall,apparent_temp_max,apparent_temp_min,rain_sum
+2026-02-11,New York,3.4,-3.1,0.3,17.6,2026-02-11T11:54,2026-02-11T22:25,0.0,-0.6,-6.3,0.3
+2026-02-11,London,12.2,7.8,2.4,18.9,2026-02-11T07:21,2026-02-11T17:07,0.0,9.0,6.5,2.4
+2026-02-11,Tokyo,7.6,2.3,5.6,15.9,2026-02-10T21:32,2026-02-11T08:18,0.0,5.7,-1.1,5.6
